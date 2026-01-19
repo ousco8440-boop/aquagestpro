@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>AquaGestPro - Gestion Piscicole Expert</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f1f5f9; --text:#0f172a; --card:#ffffff;
+      --primary:#0d9488; --primary-2:#0f766e; --accent:#f59e0b;
+      --danger:#ef4444; --line:#e2e8f0; --shadow:0 10px 15px -3px rgb(0 0 0 / 0.1);
+      --tag-eau:#e0f2fe; --tag-eau-txt:#0369a1;
+    }
+    body.dark{
+      --bg:#020617; --text:#f8fafc; --card:#1e293b;
+      --primary:#2dd4bf; --primary-2:#0d9488; --line:#334155;
+    }
+    *{box-sizing:border-box}
+    body{margin:0; background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; transition: 0.3s;}
+    header{position:sticky; top:0; z-index:100; background:var(--primary-2); color:#fff; padding:15px; display:flex; align-items:center; justify-content:space-between;}
+    .container{max-width:1000px; margin:0 auto; padding:15px}
+    .card{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:20px; margin-bottom: 20px;}
+    .grid{display:grid; gap:15px}
+    @media (min-width:600px){ .grid.cols-2{grid-template-columns:1fr 1fr} .grid.cols-3{grid-template-columns:repeat(3,1fr)} .grid.cols-4{grid-template-columns:repeat(4,1fr)} }
+    label{font-size:10px; color:var(--primary); display:block; margin-bottom:5px; font-weight: 800; text-transform: uppercase;}
+    input, select{width:100%; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:15px; font-weight: 600;}
+    .btn{cursor:pointer; border:none; font-weight:700; border-radius:10px; padding:12px; transition:0.2s; text-transform: uppercase; font-size: 12px;}
+    .btn-primary{background:var(--primary); color:#fff; width:100%}
+    .btn-help{background:var(--accent); color:white; width: 100%; margin-bottom: 10px;}
+    .kpis{display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin-bottom: 20px;}
+    @media (min-width:768px){ .kpis{grid-template-columns:repeat(6,1fr)} }
+    .kpi{background:var(--card); border-left:4px solid var(--primary); border-radius:8px; padding:12px; box-shadow: var(--shadow);}
+    .kpi .val{font-weight:800; font-size:13px; color:var(--text); margin-top:5px;}
+    .kpi .label{font-size:9px; color:var(--primary); font-weight: 700;}
+    .med-box{background:rgba(239, 68, 68, 0.05); border:1px solid var(--danger); padding:15px; border-radius:12px;}
+    .help-panel{display:none; background:#fff7ed; border:1px solid #fdba74; padding:15px; border-radius:12px; margin-bottom:20px; color:#9a3412; font-size: 13px;}
+    .help-panel.active{display:block;}
+    table{width:100%; border-collapse:collapse; font-size:12px;}
+    td, th{padding:10px; border-bottom:1px solid var(--line); text-align: left;}
+    .tag{padding:4px 8px; border-radius:6px; font-size:9px; font-weight:bold; text-transform: uppercase;}
+    .tag-eau{background:var(--tag-eau); color:var(--tag-eau-txt);}
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="font-weight:900; font-size:22px;">🐟 AquaGestPro</div>
+  <div style="display:flex; gap:10px;">
+    <button id="toggleDark" class="btn" style="background:rgba(255,255,255,0.2); color:white; padding:5px 12px;">🌙</button>
+    <button id="btnPDF" class="btn" style="background:var(--danger); color:white;">PDF</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <button class="btn btn-help" onclick="toggleHelp()">🆘 Guide Diagnostic & Maladies</button>
+  <div id="helpPanel" class="help-panel">
+    <h3 style="margin-top:0">🔍 Aide au Diagnostic Rapide</h3>
+    <div class="grid cols-2">
+      <div><b>Poissons en surface :</b> Manque d'oxygène. Action : 50% d'eau neuve.</div>
+      <div><b>Nageoires rouges :</b> Infection. Action : Bain de sel (3kg/m³).</div>
+      <div><b>Points blancs :</b> Parasites. Action : Permanganate (2g/m³).</div>
+      <div><b>Refus de manger :</b> Stress/Nitrites. Action : Arrêt repas 24h.</div>
+    </div>
+  </div>
+  
+  <section class="card med-box">
+    <label style="color:var(--danger)">🏥 Pharmacie : Dosage par Bac</label>
+    <div class="grid cols-3">
+      <div><label>Produit</label><select id="medType" onchange="calcMed()"><option value="sel">Sel (Anti-stress)</option><option value="kmno4">Permanganate</option></select></div>
+      <div><label>Vol. Bac (m³)</label><input type="number" id="medVol" value="2" oninput="calcMed()"></div>
+      <div><label>Dose</label><div id="medRes" style="font-weight:900; font-size:18px; color:var(--danger);">-</div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <label>1. Configuration du Cycle</label>
+    <div class="grid cols-4">
+      <div><label>Alevins</label><input type="number" id="nFish" value="1000"></div>
+      <div><label>Vol. Bac (m³)</label><input type="number" id="volBac" value="2"></div>
+      <div><label>Densité (kg/m³)</label><input type="number" id="densite" value="40"></div>
+      <div><label>Mortalité (%)</label><input type="number" id="mortPct" value="10"></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:15px;" onclick="calculer()">⚡ Lancer AquaGestPro</button>
+  </section>
+
+  <div class="kpis">
+    <div class="kpi"><div class="label">BACS REQUIS</div><div class="val" id="kpiBacs">-</div></div>
+    <div class="kpi"><div class="label">RÉCOLTE (KG)</div><div class="val" id="kpiPoids">-</div></div>
+    <div class="kpi"><div class="label">BÉNÉFICE EST.</div><div class="val" id="kpiProfit">-</div></div>
+    <div class="kpi"><div class="label">ROI (%)</div><div class="val" id="kpiRoi">-</div></div>
+    <div class="kpi"><div class="label">EAU (M³)</div><div class="val" id="kpiEau">-</div></div>
+    <div class="kpi"><div class="label">ALIMENT (KG)</div><div class="val" id="kpiAlim">-</div></div>
+  </div>
+
+  <section class="card"><div style="height:230px;"><canvas id="mainChart"></canvas></div></section>
+
+  <section class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+      <h3 style="margin:0; font-size:16px;">📅 Planning & Ration</h3>
+      <select id="pageSelect" style="width:auto; padding:5px;"></select>
+    </div>
+    <div id="planningTable" style="overflow-x:auto"></div>
+  </section>
+
+</div>
+
+<script>
+  let results = [];
+  let myChart = null;
+  const el = (id) => document.getElementById(id);
+
+  function toggleHelp() { el('helpPanel').classList.toggle('active'); }
+  function calcMed() {
+    const v = parseFloat(el('medVol').value) || 0;
+    const t = el('medType').value;
+    el('medRes').textContent = t === 'sel' ? (v * 3).toFixed(1) + " kg" : (v * 2).toFixed(1) + " g";
+  }
+
+  el('toggleDark').addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    el('toggleDark').textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+  });
+
+  function calculer() {
+    const n = parseInt(el('nFish').value), volB = parseFloat(el('volBac').value), dMax = parseFloat(el('densite').value), mort = parseFloat(el('mortPct').value)/100;
+    const survivants = Math.floor(n * (1-mort));
+    let totalAlim = 0, totalEau = 0; results = [];
+
+    for (let j = 1; j <= 180; j++) {
+      const pKg = 0.5 * Math.pow(j/180, 2);
+      const ration = survivants * pKg * 0.03;
+      totalAlim += ration;
+      let eau = (pKg < 0.1 && j % 7 === 0) ? "30% EAU" : (pKg >= 0.1 && j % 3 === 0 ? "50% EAU" : "");
+      if(eau !== "") totalEau += (volB * 0.5);
+      results.push({ j, p: pKg.toFixed(3), r: ration.toFixed(2), eau });
+    }
+
+    const biomasseF = survivants * 0.5;
+    const nbB = Math.ceil(biomasseF / (volB * dMax));
+    const profit = (biomasseF * 2500) - ((totalAlim * 950) + (n * 100));
+
+    el('kpiBacs').textContent = nbB;
+    el('kpiPoids').textContent = biomasseF.toFixed(0);
+    el('kpiProfit').textContent = Math.round(profit).toLocaleString();
+    el('kpiRoi').textContent = ((profit/((totalAlim * 950) + (n * 100)))*100).toFixed(1);
+    el('kpiEau').textContent = Math.round(totalEau * nbB);
+    el('kpiAlim').textContent = Math.round(totalAlim);
+
+    renderTable(1); updateChart(); setupPages(); calcMed();
+  }
+
+  function setupPages() {
+    let h = ""; for(let i=1; i<=6; i++) h += `<option value="${i}">Mois ${i}</option>`;
+    el('pageSelect').innerHTML = h;
+  }
+
+  function renderTable(m) {
+    const data = results.slice((m-1)*30, m*30);
+    let h = `<table><tr><th>Jour</th><th>Poids</th><th>Ration</th><th>Action</th></tr>`;
+    data.forEach(r => { h += `<tr><td>J-${r.j}</td><td>${r.p}kg</td><td>${r.r}kg</td><td>${r.eau ? `<span class="tag tag-eau">${r.eau}</span>` : '-'}</td></tr>`; });
+    el('planningTable').innerHTML = h + "</table>";
+  }
+
+  function updateChart() {
+    const ctx = el('mainChart').getContext('2d');
+    if(myChart) myChart.destroy();
+    myChart = new Chart(ctx, { type: 'line', data: { labels: results.filter(r => r.j % 15 === 0).map(r => "J"+r.j), datasets: [{ label: 'Croissance (kg)', data: results.filter(r => r.j % 15 === 0).map(r => r.p), borderColor: '#0d9488', tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false } });
+  }
+
+  el('pageSelect').addEventListener('change', (e) => renderTable(e.target.value));
+  el('btnPDF').addEventListener('click', () => {
+    const { jsPDF } = window.jspdf; const doc = new jsPDF();
+    doc.text("AquaGestPro - Rapport Technique", 14, 20);
+    doc.autoTable({ startY: 30, head: [['Jour', 'Poids (kg)', 'Ration (kg)']], body: results.filter(r => r.j % 10 === 0).map(r => [r.j, r.p, r.r]) });
+    doc.save("AquaGestPro_Rapport.pdf");
+  });
+
+  window.onload = calculer;
+</script>
+</body>
+</html>
